@@ -1,15 +1,15 @@
 # GSU Cosmic Ray Detector and Research Map
 
-A Shiny web application that displays cosmic ray detector locations and research sites on an interactive map, with data sourced from Google Sheets.
+A Shiny web application that displays cosmic ray detector locations and research sites on an interactive map, with data sourced from a local CSV file.
 
 ## Features
 
 - **Interactive Map**: Leaflet-based map showing detector and research locations worldwide
-- **Google Sheets Integration**: Automatically reads data from your Google Sheet
-- **Automatic Geocoding**: Converts addresses (City, Country, School) to map coordinates
+- **CSV Data Source**: Reads data from `comsic_data.csv` file
 - **Filtering**: Filter by Country and City
 - **Data Table**: View filtered data in a searchable table
-- **Dynamic Updates**: Data updates automatically when the Google Sheet is modified
+- **Marker Clustering**: Groups nearby markers for better visualization
+- **Zoom Controls**: Full zoom in/out functionality
 
 ## Setup Instructions
 
@@ -18,55 +18,30 @@ A Shiny web application that displays cosmic ray detector locations and research
 Open R or RStudio and run:
 
 ```r
-install.packages(c("shiny", "leaflet", "googlesheets4", "dplyr", "DT", "tidygeocoder"))
+install.packages(c("shiny", "leaflet", "dplyr", "DT", "readr"))
 ```
 
-Or use the `.Rprofile` file which will automatically install packages when you open the project.
+### 2. Prepare Your Data File
 
-### 2. Prepare Your Google Sheet
+The app reads data from `comsic_data.csv`. Your CSV file should have the following columns:
 
-The app is currently configured to use this Google Sheet:
-**https://docs.google.com/spreadsheets/d/1rhfsLXwBJXZXwvsUw5cSmItdt44fGl156Ix6jSzAY9Y/edit**
-
-Your Google Sheet should have the following columns:
-
+- **Type**: Type of location (e.g., "Detector")
 - **Country**: Country name (e.g., "USA", "Japan", "Turkey")
 - **City**: City name (e.g., "Atlanta, Georgia", "Istanbul")
 - **School**: School/Institution name (e.g., "Georgia State University")
+- **Latitude**: Latitude coordinate (numeric)
+- **Longitude**: Longitude coordinate (numeric)
 
-The app will automatically geocode these locations to get latitude and longitude coordinates. No manual coordinate entry needed!
+**Note**: The app will automatically create an "Institution" column from the School/City/Country data.
 
-#### Example Google Sheet Structure:
+#### Example CSV Structure:
 
-| Country | City | School |
-|---------|------|--------|
-| USA | Atlanta, Georgia | Georgia State University |
-| Japan | Nara | Nara Women's University |
-| Turkey | Istanbul | Istanbul University |
+| Type | Country | City | School | Latitude | Longitude |
+|------|---------|------|--------|----------|-----------|
+| Detector | USA | Atlanta, Georgia | Georgia State University | 33.7536 | -84.3854 |
+| Detector | Japan | Nara | Nara Women's University | 34.6856 | 135.8328 |
 
-### 3. Make Google Sheet Public (or Set Up Authentication)
-
-**Option A: Public Sheet (Easiest)**
-1. In Google Sheets, click "Share"
-2. Set sharing to "Anyone with the link can view"
-3. Copy the sheet URL
-
-**Option B: Private Sheet with Authentication**
-1. Set up Google Sheets API authentication
-2. Modify `app.R` to use authentication instead of `gs4_deauth()`
-3. See [googlesheets4 documentation](https://googlesheets4.tidyverse.org/) for details
-
-### 4. Configure the App (Optional)
-
-The app is already configured to use your Google Sheet. If you need to change it:
-
-1. Open `app.R`
-2. Find the line: `GOOGLE_SHEET_URL <- "https://docs.google.com/spreadsheets/d/1rhfsLXwBJXZXwvsUw5cSmItdt44fGl156Ix6jSzAY9Y/edit"`
-3. Replace with your Google Sheet URL
-
-**Note**: The app automatically geocodes locations on first load. This may take a minute or two depending on the number of locations. Geocoded results are cached to speed up subsequent loads.
-
-### 5. Run the App Locally
+### 3. Run the App Locally
 
 In R or RStudio:
 
@@ -80,46 +55,64 @@ Or if you're in the project directory:
 shiny::runApp()
 ```
 
-### 6. Deploy to shinyapps.io (Optional)
+### 4. Deploy to shinyapps.io
 
 1. Install `rsconnect` package:
    ```r
    install.packages("rsconnect")
    ```
 
-2. Set up your account:
+2. Set up your account (get token and secret from https://www.shinyapps.io/admin/#/tokens):
    ```r
    library(rsconnect)
-   rsconnect::setAccountInfo(name="your-account-name", 
-                             token="your-token", 
-                             secret="your-secret")
+   rsconnect::setAccountInfo(
+     name = "your-account-name",
+     token = "your-token",
+     secret = "your-secret"
+   )
    ```
 
-3. Deploy:
+3. Deploy the app:
+   ```r
+   rsconnect::deployApp(
+     appDir = ".",
+     appName = "GSU_cosmic_ray_map",
+     account = "your-account-name"
+   )
+   ```
+
+   Or simply:
    ```r
    rsconnect::deployApp()
    ```
 
+**Important**: Make sure `comsic_data.csv` is in the same directory as `app.R` when deploying. The file will be included automatically.
+
 ## Customization
+
+### Change Data File
+
+Edit the `CSV_FILE_PATH` variable in `app.R`:
+```r
+CSV_FILE_PATH <- "your_data_file.csv"
+```
 
 ### Adjust Default Map Location
 
-In `app.R`, modify the `setView` line:
+In `app.R`, modify the `setView` line in the map initialization:
 ```r
-setView(lng = -84.4, lat = 33.8, zoom = 10)  # Change coordinates and zoom level
+setView(lng = mean_lng, lat = mean_lat, zoom = 3)  # Change zoom level
 ```
 
-### Change Filter Options
+### Customize Marker Appearance
 
-Modify the `choices` parameter in the `selectInput` functions in the UI section.
-
-### Customize Marker Colors
-
-Modify the color palette in the `type_colors` definition:
+Modify the marker properties in the `addCircleMarkers` function:
 ```r
-type_colors <- colorFactor(
-  palette = c("blue", "red", "green", "orange", "purple"),
-  domain = unique(df$Type)
+addCircleMarkers(
+  radius = 8,           # Marker size
+  color = "blue",       # Marker color
+  fillOpacity = 0.7,    # Opacity
+  ...
 )
 ```
 
@@ -128,20 +121,21 @@ type_colors <- colorFactor(
 ```
 GSU_cosmic_ray_map/
 ├── app.R              # Main Shiny application
+├── comsic_data.csv    # Data file with detector locations
 ├── README.md          # This file
 ├── requirements.txt   # Package dependencies
-├── .Rprofile          # Auto-install packages
-└── LICENSE            # License file
+├── LICENSE            # License file
+└── .gitignore         # Git ignore file
 ```
 
 ## Troubleshooting
 
 ### Data Not Loading
 
-- Verify the Google Sheet URL is correct
-- Ensure the sheet is public (if using public access)
-- Check that column names match expected names (case-sensitive)
+- Verify the CSV file exists and is named `comsic_data.csv` (or update `CSV_FILE_PATH` in `app.R`)
+- Check that column names match expected names (Type, Country, City, School, Latitude, Longitude)
 - Verify Latitude and Longitude columns contain valid numeric values
+- Ensure the CSV file is in the same directory as `app.R`
 
 ### Map Not Displaying
 
@@ -149,10 +143,11 @@ GSU_cosmic_ray_map/
 - Verify data contains valid coordinates
 - Ensure at least one row of data exists after filtering
 
-### Authentication Issues
+### Deployment Issues
 
-- For public sheets, ensure `gs4_deauth()` is called
-- For private sheets, set up proper authentication credentials
+- Make sure `comsic_data.csv` is included in the deployment directory
+- Verify all packages in `requirements.txt` are available on shinyapps.io
+- Check that file paths are relative (not absolute)
 
 ## Author
 
